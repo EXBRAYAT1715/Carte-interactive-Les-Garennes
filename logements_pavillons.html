@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Carte interactive des logements</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+      #map { height: 70vh; border-radius: 1rem; }
+      .sev-low   { background:#4ade80; border:2px solid #15803d; }
+      .sev-med   { background:#fcd34d; border:2px solid #d97706; }
+      .sev-high  { background:#f87171; border:2px solid #b91c1c; }
+      th { cursor:pointer; }
+    </style>
+  </head>
+  <body class="bg-gray-100 font-sans p-4">
+    <h1 class="text-2xl font-bold mb-4 text-center">
+      Parc de 39&nbsp;logements – Carte interactive des défauts
+    </h1>
+
+    <div id="summary" class="fixed top-4 right-4 bg-white rounded-2xl shadow-lg p-4 text-sm space-y-1 z-50"></div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-4 gap-4">
+      <aside class="lg:col-span-1 bg-white p-4 rounded-2xl shadow-xl">
+        <h2 class="text-xl font-semibold mb-2 flex items-center gap-2">
+          <svg xmlns='http://www.w3.org/2000/svg' class='h-6 w-6' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
+            <path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L15 12.414V19a1 1 0 01-1.447.894l-4-2A1 1 0 019 17v-4.586L3.293 6.707A1 1 0 013 6V4z'/>
+          </svg>
+          Filtres
+        </h2>
+        <div id="filters" class="space-y-2"></div>
+      </aside>
+
+      <section class="lg:col-span-3 space-y-4">
+        <div id="map" class="shadow-xl"></div>
+        <div class="bg-white rounded-2xl shadow-xl p-4 overflow-x-auto">
+          <h2 class="text-xl font-semibold mb-2">Logements concernés (<span id="count"></span>)</h2>
+          <table id="table" class="min-w-full text-sm">
+            <thead>
+              <tr class="bg-gray-200">
+                <th data-key="address" class="px-3 py-2 text-left">Adresse ▲▼</th>
+                <th data-key="nb"      class="px-3 py-2 text-left"># Défauts ▲▼</th>
+              </tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+<script>
+  const data = [
+  {
+    "address": "1 Rue Pierre-de-Geyter (T4)",
+    "lat": 48.774261,
+    "lng": 2.057112,
+    "categories": [
+      "compteur_electrique_dorigine",
+      "probleme_escalier",
+      "fils_denudes_et_absences_de_protection_electrique",
+      "humidites_et_ou_moisissures"
+    ]
+  },
+  {
+    "address": "2 Rue Pierre-de-Geyter (T4)",
+    "lat": 48.774338,
+    "lng": 2.057122,
+    "categories": [
+      "compteur_electrique_dorigine",
+      "humidites_et_ou_moisissures"
+    ]
+  },
+  {
+    "address": "3 Rue Pierre-de-Geyter (T6)",
+    "lat": 48.774401,
+    "lng": 2.057107,
+    "categories": [
+      "probleme_vmc",
+      "compteur_electrique_dorigine",
+      "probleme_escalier",
+      "fils_denudes_et_absences_de_protection_electrique",
+      "humidites_et_ou_moisissures",
+      "fuite"
+    ]
+  },
+  {
+    "address": "4 Rue Pierre-de-Geyter (T6)",
+    "lat": 48.77449,
+    "lng": 2.057084,
+    "categories": [
+      "probleme_vmc",
+      "compteur_electrique_dorigine",
+      "fils_denudes_et_absences_de_protection_electrique",
+      "humidites_et_ou_moisissures"
+    ]
+  },
+  {
+    "address": "5 Rue Pierre-de-Geyter (T4)",
+    "lat": 48.774554,
+    "lng": 2.057025,
+    "categories": [
+      "probleme_vmc",
+      "humidites_et_ou_moisissures"
+    ]
+  },
+  {
+    "address": "6 Rue Pierre-de-Geyter (T4)",
+    "lat": 48.774627,
+    "lng": 2.057007,
+    "categories": [
+      "fils_denudes_et_absences_de_protection_electrique"
+    ]
+  },
+  {
+    "address": "7 Rue Pierre-de-Geyter (T4)",
+    "lat": 48.774605,
+    "lng": 2.05686,
+    "categories": [
+      "probleme_vmc",
+      "humidites_et_ou_moisissures",
+      "fuite"
+    ]
+  },
+  {
+    "address": "8 Rue Pierre-de-Geyter (T4)",
+    "lat": 48.774536,
+    "lng": 2.056884,
+    "categories": [
+      "probleme_escalier"
+    ]
+  },
+  {
+    "address": "9 Rue Pierre-de-Geyter (T6)",
+    "lat": 48.77446,
+    "lng": 2.056863,
+    "categories": [
+      "compteur_electrique_dorigine",
+      "utilisation_chauffage_dappoint",
+      "fils_denudes_et_absences_de_protection_electrique",
+      "humidites_et_ou_moisissures"
+    ]
+  },
+  {
+    "address": "10 Rue Pierre-de-Geyter (T6)",
+    "lat": 48.774375,
+    "lng": 2.056891,
+    "categories": [
+      "utilisation_chauffage_dappoint",
+      "fils_denudes_et_absences_de_protection_electrique",
+      "humidites_et_ou_moisissures",
+      "fuite"
+    ]
+  },
+  {
+    "address": "11 Rue Pierre-de-Geyter (T4)",
+    "lat": 48.774304,
+    "lng": 2.056904,
+    "categories": []
+  },
+  {
+    "address": "12 Rue Pierre-de-Geyter (T4)",
+    "lat": 48.774238,
+    "lng": 2.056959,
+    "categories": []
+  },
+  {
+    "address": "1 Place Albert-Roussel (T5)",
+    "lat": 48.774063,
+    "lng": 2.0569,
+    "categories": [
+      "compteur_electrique_dorigine",
+      "fils_denudes_et_absences_de_protection_electrique",
+      "chiens_assis_en_mauvais_etat"
+    ]
+  },
+  {
+    "address": "2 Place Albert-Roussel (T5)",
+    "lat": 48.773978,
+    "lng": 2.056894,
+    "categories": [
+      "chiens_assis_en_mauvais_etat"
+    ]
+  },
+  {
+    "address": "3 Place Albert-Roussel (T5)",
+    "lat": 48.773877,
+    "lng": 2.056928,
+    "categories": [
+      "fils_denudes_et_absences_de_protection_electrique",
+      "humidites_et_ou_moisissures",
+      "chiens_assis_en_mauvais_etat"
+    ]
+  },
+  {
+    "address": "4 Place Albert-Roussel (T5)",
+    "lat": 48.773836,
+    "lng": 2.057041,
+    "categories": [
+      "humidites_et_ou_moisissures",
+      "chiens_assis_en_mauvais_etat"
+    ]
+  },
+  {
+    "address": "5 Place Albert-Roussel (T5)",
+    "lat": 48.773861,
+    "lng": 2.057225,
+    "categories": [
+      "utilisation_chauffage_dappoint",
+      "fils_denudes_et_absences_de_protection_electrique",
+      "chiens_assis_en_mauvais_etat"
+    ]
+  },
+  {
+    "address": "6 Place Albert-Roussel (T5)",
+    "lat": 48.773938,
+    "lng": 2.057349,
+    "categories": [
+      "compteur_electrique_dorigine",
+      "chiens_assis_en_mauvais_etat"
+    ]
+  },
+  {
+    "address": "7 Place Albert-Roussel (T5)",
+    "lat": 48.774046,
+    "lng": 2.057317,
+    "categories": [
+      "compteur_electrique_dorigine",
+      "fils_denudes_et_absences_de_protection_electrique",
+      "chiens_assis_en_mauvais_etat"
+    ]
+  },
+  {
+    "address": "8 Place Albert-Roussel (T5)",
+    "lat": 48.774127,
+    "lng": 2.05728,
+    "categories": [
+      "compteur_electrique_dorigine",
+      "chiens_assis_en_mauvais_etat"
+    ]
+  },
+  {
+    "address": "2 Rue César-Franck (T5)",
+    "lat": 48.774243,
+    "lng": 2.057607,
+    "categories": [
+      "fils_denudes_et_absences_de_protection_electrique",
+      "humidites_et_ou_moisissures",
+      "chiens_assis_en_mauvais_etat"
+    ]
+  },
+  {
+    "address": "4 Rue César-Franck (T5)",
+    "lat": 48.774329,
+    "lng": 2.057663,
+    "categories": [
+      "probleme_vmc",
+      "fils_denudes_et_absences_de_protection_electrique",
+      "humidites_et_ou_moisissures",
+      "chiens_assis_en_mauvais_etat"
+    ]
+  },
+  {
+    "address": "6 Rue César-Franck (T5)",
+    "lat": 48.774412,
+    "lng": 2.057718,
+    "categories": [
+      "compteur_electrique_dorigine",
+      "utilisation_chauffage_dappoint",
+      "chiens_assis_en_mauvais_etat"
+    ]
+  },
+  {
+    "address": "8 Rue César-Franck (T5)",
+    "lat": 48.774493,
+    "lng": 2.05777,
+    "categories": [
+      "compteur_electrique_dorigine",
+      "probleme_escalier",
+      "utilisation_chauffage_dappoint",
+      "fils_denudes_et_absences_de_protection_electrique",
+      "chiens_assis_en_mauvais_etat"
+    ]
+  },
+  {
+    "address": "10 Rue César-Franck (T5)",
+    "lat": 48.774563,
+    "lng": 2.057708,
+    "categories": [
+      "probleme_vmc",
+      "compteur_electrique_dorigine",
+      "fils_denudes_et_absences_de_protection_electrique",
+      "chiens_assis_en_mauvais_etat"
+    ]
+  },
+  {
+    "address": "12 Rue César-Franck (T5)",
+    "lat": 48.774645,
+    "lng": 2.057645,
+    "categories": [
+      "compteur_electrique_dorigine",
+      "utilisation_chauffage_dappoint",
+      "fils_denudes_et_absences_de_protection_electrique",
+      "humidites_et_ou_moisissures",
+      "fuite",
+      "chiens_assis_en_mauvais_etat"
+    ]
+  },
+  {
+    "address": "14 Rue César-Franck (T5)",
+    "lat": 48.774724,
+    "lng": 2.057584,
+    "categories": [
+      "compteur_electrique_dorigine",
+      "utilisation_chauffage_dappoint",
+      "fils_denudes_et_absences_de_protection_electrique",
+      "humidites_et_ou_moisissures",
+      "chiens_assis_en_mauvais_etat"
+    ]
+  },
+  {
+    "address": "21 Rue Francis-Poulenc (T4)",
+    "lat": 48.775868,
+    "lng": 2.058728,
+    "categories": [
+      "probleme_vmc",
+      "probleme_escalier",
+      "utilisation_chauffage_dappoint",
+      "fils_denudes_et_absences_de_protection_electrique"
+    ]
+  },
+  {
+    "address": "22 Rue Francis-Poulenc (T4)",
+    "lat": 48.775942,
+    "lng": 2.058803,
+    "categories": [
+      "probleme_vmc",
+      "compteur_electrique_dorigine",
+      "fils_denudes_et_absences_de_protection_electrique",
+      "humidites_et_ou_moisissures"
+    ]
+  },
+  {
+    "address": "23 Rue Francis-Poulenc (T4)",
+    "lat": 48.776014,
+    "lng": 2.058891,
+    "categories": []
+  },
+  {
+    "address": "24 Rue Francis-Poulenc (T4)",
+    "lat": 48.776084,
+    "lng": 2.058945,
+    "categories": []
+  },
+  {
+    "address": "25 Rue Francis-Poulenc (T4)",
+    "lat": 48.776179,
+    "lng": 2.059084,
+    "categories": [
+      "compteur_electrique_dorigine"
+    ]
+  },
+  {
+    "address": "26 Rue Francis-Poulenc (T4)",
+    "lat": 48.776209,
+    "lng": 2.059082,
+    "categories": [
+      "probleme_vmc",
+      "compteur_electrique_dorigine",
+      "humidites_et_ou_moisissures"
+    ]
+  },
+  {
+    "address": "27 Rue Francis-Poulenc (T4)",
+    "lat": 48.776315,
+    "lng": 2.059071,
+    "categories": [
+      "humidites_et_ou_moisissures",
+      "fuite"
+    ]
+  },
+  {
+    "address": "28 Rue Francis-Poulenc (T4)",
+    "lat": 48.776304,
+    "lng": 2.058791,
+    "categories": [
+      "probleme_vmc",
+      "compteur_electrique_dorigine",
+      "fils_denudes_et_absences_de_protection_electrique",
+      "humidites_et_ou_moisissures"
+    ]
+  },
+  {
+    "address": "29 Rue Francis-Poulenc (T4)",
+    "lat": 48.776208,
+    "lng": 2.0587,
+    "categories": [
+      "compteur_electrique_dorigine",
+      "humidites_et_ou_moisissures"
+    ]
+  },
+  {
+    "address": "30 Rue Francis-Poulenc (T4)",
+    "lat": 48.776185,
+    "lng": 2.058674,
+    "categories": [
+      "humidites_et_ou_moisissures"
+    ]
+  },
+  {
+    "address": "31 Rue Francis-Poulenc (T4)",
+    "lat": 48.7761,
+    "lng": 2.058579,
+    "categories": [
+      "probleme_vmc",
+      "humidites_et_ou_moisissures"
+    ]
+  },
+  {
+    "address": "32 Rue Francis-Poulenc (T4)",
+    "lat": 48.776076,
+    "lng": 2.058554,
+    "categories": [
+      "fils_denudes_et_absences_de_protection_electrique",
+      "humidites_et_ou_moisissures"
+    ]
+  }
+];
+  const categoryLabels = {
+  "probleme_vmc": "Problème VMC",
+  "compteur_electrique_dorigine": "Compteur electrique d'origine",
+  "probleme_escalier": "Problème Escalier",
+  "utilisation_chauffage_dappoint": "Utilisation Chauffage d'appoint",
+  "fils_denudes_et_absences_de_protection_electrique": "Fils dénudés et absences de protection électrique",
+  "humidites_et_ou_moisissures": "Humidités et/ou moisissures",
+  "fuite": "Fuite",
+  "chiens_assis_en_mauvais_etat": "Chiens assis en mauvais état"
+};
+  const allCategories = [...new Set(data.flatMap(d=>d.categories))].sort();
+
+  // gravité
+  const CRITICAL = ["probleme_vmc","compteur_electrique_dorigine","fils_denudes_et_absences_de_protection_electrique"];
+  function severity(d) {
+    const crit = d.categories.filter(c=>CRITICAL.includes(c)).length;
+    const tot  = d.categories.length;
+    return crit>0 || tot>3 ? "high" : tot>=2 ? "med" : tot===1 ? "low" : "none";
+  }
+
+  // map
+  const map = L.map('map').setView([48.7748,2.0573],17);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'}).addTo(map);
+  const markers=[];
+  const colors={high:'#b91c1c',med:'#d97706',low:'#15803d',none:'#2563eb'};
+  const fills={high:'#f87171',med:'#fcd34d',low:'#4ade80',none:'#60a5fa'};
+
+  data.forEach(d=>{
+    const sev=severity(d);
+    const marker=L.circleMarker([d.lat,d.lng],{radius:8,color:colors[sev],fillColor:fills[sev],fillOpacity:0.85})
+      .bindPopup(`<strong>${d.address}</strong><br>${d.categories.map(c=>categoryLabels[c]||c).join('<br>')||'Aucun défaut'}`)
+      .addTo(map);
+    marker.meta={...d,severity:sev};
+    markers.push(marker);
+  });
+
+  // filtres
+  const filtersDiv=document.getElementById('filters');
+  allCategories.forEach(c=>{
+    const id='chk-'+c;
+    filtersDiv.insertAdjacentHTML('beforeend',`<label class="inline-flex items-center gap-2"><input type="checkbox" id="${id}" class="h-4 w-4 text-blue-600"/><span>${categoryLabels[c]||c}</span></label>`);
+    document.getElementById(id).addEventListener('change',updateView);
+  });
+
+  // tri
+  let currentSort={key:'address',asc:true};
+  document.querySelectorAll('th[data-key]').forEach(th=>th.addEventListener('click',()=>{
+    const k=th.dataset.key;
+    currentSort.asc=currentSort.key===k?!currentSort.asc:true;
+    currentSort.key=k;
+    updateView();
+  }));
+
+  const tbody=document.getElementById('tbody');
+  const countEl=document.getElementById('count');
+  const summary=document.getElementById('summary');
+
+  function updateView(){
+    const active=allCategories.filter(c=>document.getElementById('chk-'+c)?.checked);
+    let visibles=[];
+    markers.forEach(m=>{
+      const hit=active.length===0||active.some(c=>m.meta.categories.includes(c));
+      if(hit){m.addTo(map);visibles.push(m.meta);}else map.removeLayer(m);
+    });
+
+    visibles.sort((a,b)=>{
+      const k=currentSort.key;
+      const dir=currentSort.asc?1:-1;
+      if(k==='nb') return (a.categories.length-b.categories.length)*dir;
+      return a[k].localeCompare(b[k])*dir;
+    });
+
+    tbody.innerHTML=visibles.map(v=>`<tr><td class="px-3 py-1 whitespace-nowrap">${v.address}</td><td class="px-3 py-1">${v.categories.length}</td></tr>`).join('');
+    countEl.textContent=visibles.length;
+
+    const total=data.length;
+    const sansDef=data.filter(d=>d.categories.length===0).length;
+    const counts={};
+    data.flatMap(d=>d.categories).forEach(c=>counts[c]=(counts[c]||0)+1);
+    const top=Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,3);
+    summary.innerHTML=`<div class="font-semibold">Résumé</div>
+      <div>Total logements : <strong>${total}</strong></div>
+      <div>Sans défaut : <strong>${sansDef}</strong></div>
+      <div>Top défauts :</div>
+      <ul class="list-disc list-inside">${top.map(([c,n])=>`<li>${categoryLabels[c]} : ${n}</li>`).join('')}</ul>`;
+  }
+
+  updateView();
+</script>
+</body>
+</html>
